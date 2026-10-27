@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>图片转3D · 免费工具</title>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module"
+    src="https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 28px 18px;
+      background: #111;
+      color: #eee;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    h1 {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 0 0 20px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+      gap: 12px;
+      max-width: 1100px;
+    }
+    .card {
+      background: #1c1d22;
+      border-radius: 10px;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      border: 1px solid #2a2c33;
+    }
+    .name {
+      font-size: 15px;
+      font-weight: 600;
+    }
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      font-size: 12px;
+    }
+    .tag {
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+    }
+    .free { background: #1a4d2e; color: #7fdfa8; }
+    .login { background: #4d3a1a; color: #dfc47f; }
+    .quota {
+      color: #9aa0aa;
+      font-size: 12px;
+    }
+    a.btn {
+      margin-top: 2px;
+      text-align: center;
+      padding: 8px 12px;
+      background: #4f8cff;
+      color: #fff;
+      border-radius: 8px;
+      text-decoration: none;
+      font-size: 13px;
+    }
+    a.btn:hover { background: #3a74e0; }
+
+    /* ===== 标签页 ===== */
+    .wb-tabs {
+      display: flex;
+      gap: 8px;
+      margin: 0 0 18px;
+      max-width: 1100px;
+    }
+    .wb-tab {
+      padding: 8px 16px;
+      border: 1px solid #2a2c33;
+      border-radius: 8px;
+      background: #1c1d22;
+      color: #9aa0aa;
+      font-size: 14px;
+      font-family: inherit;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .wb-tab:hover { color: #eee; }
+    .wb-tab.active { background: #4f8cff; border-color: #4f8cff; color: #fff; }
+    .wb-section[hidden] { display: none; }
+
+    /* ===== GLB 预览 ===== */
+    .glb-wrap { max-width: 1100px; }
+    .glb-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      padding: 10px 14px;
+      margin-bottom: 12px;
+      background: #1c1d22;
+      border: 1px solid #2a2c33;
+      border-radius: 10px;
+      font-size: 13px;
+    }
+    .glb-btn {
+      padding: 8px 14px;
+      border: none;
+      border-radius: 8px;
+      background: #4f8cff;
+      color: #fff;
+      cursor: pointer;
+      font-size: 13px;
+      font-family: inherit;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .glb-btn:hover { background: #3a74e0; }
+    .glb-btn.secondary { background: #2a2c33; color: #eee; }
+    .glb-btn.secondary:hover { background: #363943; }
+    #glbFile {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    #glbName {
+      flex: 1;
+      min-width: 0;
+      color: #9aa0aa;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .glb-stage {
+      position: relative;
+      height: 62vh;
+      min-height: 320px;
+      background: #1a1a1a;
+      border: 1px solid #2a2c33;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .glb-stage.dragging { border-color: #4f8cff; border-style: dashed; }
+    #glbViewer {
+      width: 100%;
+      height: 100%;
+      background: #1a1a1a;
+      --poster-color: transparent;
+    }
+    #glbHint {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+      color: #9aa0aa;
+      pointer-events: none;
+    }
+    #glbHint .glb-title { color: #eee; font-size: 16px; font-weight: 600; margin: 0 0 8px; }
+    #glbHint p { margin: 0; font-size: 13px; }
+    #glbDrop {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(79, 140, 255, 0.25);
+      color: #fff;
+      font-size: 18px;
+      pointer-events: none;
+    }
+    .glb-stage.dragging #glbDrop { display: flex; }
+    .glb-tip { margin: 10px 2px 0; color: #9aa0aa; font-size: 12px; line-height: 1.6; }
+    .glb-tip a { color: #4f8cff; cursor: pointer; text-decoration: none; }
+
+    /* ===== GLB 上色 ===== */
+    .pt-main { display: flex; gap: 12px; align-items: stretch; }
+    .pt-stage {
+      position: relative;
+      flex: 1;
+      min-width: 0;
+      height: 66vh;
+      min-height: 360px;
+      background: #1b1d23;
+      border: 1px solid #2a2c33;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .pt-stage.dragging { border-color: #4f8cff; border-style: dashed; }
+    #ptCanvas { display: block; width: 100%; height: 100%; touch-action: none; }
+    #ptEmpty {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      color: #9aa0aa;
+      pointer-events: none;
+      gap: 6px;
+      padding: 24px;
+    }
+    #ptEmpty .pt-title { color: #eee; font-size: 16px; font-weight: 600; }
+    #ptEmpty p { margin: 0; font-size: 13px; }
+    #ptDrop {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(79, 140, 255, 0.25);
+      color: #fff;
+      font-size: 18px;
+      pointer-events: none;
+    }
+    .pt-stage.dragging #ptDrop { display: flex; }
+    #ptFile { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; pointer-events: none; }
+    #ptSelName { flex: 1; min-width: 0; color: #9aa0aa; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .glb-btn:disabled { opacity: .4; cursor: default; }
+    #ptPanel {
+      width: 268px;
+      flex: none;
+      padding: 14px;
+      border-radius: 10px;
+      background: #1c1d22;
+      border: 1px solid #2a2c33;
+      align-self: flex-start;
+    }
+    #ptPanel.pt-disabled .pt-ctl { opacity: .4; pointer-events: none; }
+    #ptPanel h3 { margin: 0 0 10px; font-size: 13px; font-weight: 600; color: #9aa0aa; }
+    .pt-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .pt-row label { font-size: 12px; color: #9aa0aa; width: 52px; flex: none; }
+    #ptColor { width: 100%; height: 34px; border: 0; border-radius: 8px; background: none; padding: 0; cursor: pointer; }
+    #ptPanel input[type="range"] { flex: 1; min-width: 0; accent-color: #4f8cff; }
+    .pt-value { width: 38px; text-align: right; font-size: 12px; color: #9aa0aa; }
+    .pt-presets { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px; }
+    .pt-presets .glb-btn { padding: 7px 6px; font-size: 12px; }
+    .pt-hint { font-size: 11px; color: #6c717c; line-height: 1.5; margin-top: 10px; }
+    @media (max-width: 700px) {
+      .pt-main { flex-direction: column; }
+      .pt-stage { height: 52vh; min-height: 300px; }
+      #ptPanel { width: auto; align-self: stretch; }
+    }
+  </style>
+</head>
+<body>
+  <h1>图片转 3D · 免费工具</h1>
+
+  <div class="wb-tabs" role="tablist">
+    <button class="wb-tab active" id="tabTools" role="tab" data-target="toolsSection" type="button">建模工具</button>
+    <button class="wb-tab" id="tabPreview" role="tab" data-target="previewSection" type="button">GLB 预览</button>
+    <button class="wb-tab" id="tabPaint" role="tab" data-target="paintSection" type="button">GLB 上色</button>
+  </div>
+
+  <div class="wb-section" id="toolsSection">
+  <div class="grid">
+
+    <div class="card">
+      <div class="name">three.ws Workbench</div>
+      <div class="meta">
+        <span class="tag free">免登录</span>
+        <span class="quota">免费</span>
+      </div>
+      <a class="btn" href="https://three.ws/workbench" target="_blank">打开</a>
+    </div>
+
+    <div class="card">
+      <div class="name">3D Valley</div>
+      <div class="meta">
+        <span class="tag free">免登录</span>
+        <span class="quota">每日免费额度</span>
+      </div>
+      <a class="btn" href="https://3dvalley.com" target="_blank">打开</a>
+    </div>
+
+    <div class="card">
+      <div class="name">Fast3D</div>
+      <div class="meta">
+        <span class="tag free">免登录</span>
+        <span class="quota">每日免费额度</span>
+      </div>
+      <a class="btn" href="https://www.fast3d.io" target="_blank">打开</a>
+    </div>
+
+    <div class="card">
+      <div class="name">Sloyd</div>
+      <div class="meta">
+        <span class="tag free">免登录</span>
+        <span class="quota">每天 1 次</span>
+      </div>
+      <a class="btn" href="https://www.sloyd.ai" target="_blank">打开</a>
+    </div>
+
+    <div class="card">
+      <div class="name">腾讯混元 3D</div>
+      <div class="meta">
+        <span class="tag login">需登录</span>
+        <span class="quota">每日 20 次</span>
+      </div>
+      <a class="btn" href="https://3d.hunyuan.tencent.com" target="_blank">打开</a>
+    </div>
+
+    <div class="card">
+      <div class="name">Tripo AI</div>
+      <div class="meta">
+        <span class="tag login">需登录</span>
+        <span class="quota">每月约 200–300 积分</span>
+      </div>
+      <a class="btn" href="https://www.tripo3d.ai" target="_blank">打开</a>
+    </div>
+
+    <div class="card">
+      <div class="name">Meshy</div>
+      <div class="meta">
+        <span class="tag login">需登录</span>
+        <span class="quota">免费额度有限</span>
+      </div>
+      <a class="btn" href="https://www.meshy.ai" target="_blank">打开</a>
+    </div>
+
+    <div class="card">
+      <div class="name">Rodin (Hyper3D)</div>
+      <div class="meta">
+        <span class="tag login">需登录</span>
+        <span class="quota">10 个一次性积分</span>
+      </div>
+      <a class="btn" href="https://hyper3d.ai" target="_blank">打开</a>
+    </div>
+
+    <div class="card">
+      <div class="name">CSM</div>
+      <div class="meta">
+        <span class="tag login">需登录</span>
+        <span class="quota">10 个一次性积分</span>
+      </div>
+      <a class="btn" href="https://csm.ai" target="_blank">打开</a>
+    </div>
+
+    <div class="card">
+      <div class="name">TRELLIS 2 (Hugging Face)</div>
+      <div class="meta">
+        <span class="tag free">免登录</span>
+        <span class="quota">无限免费</span>
+      </div>
+      <a class="btn" href="https://huggingface.co/spaces/microsoft/TRELLIS.2" target="_blank">打开</a>
+    </div>
+
+  </div>
+  </div>
+
+  <div class="wb-section glb-wrap" id="previewSection" hidden>
+    <div class="glb-bar">
+      <button class="glb-btn" id="glbPickBtn" type="button">选择 GLB 文件</button>
+      <input type="file" id="glbFile" />
+      <button class="glb-btn secondary" id="glbResetBtn" type="button">重置</button>
+      <button class="glb-btn secondary" id="glbToPaintBtn" type="button">在「GLB 上色」中编辑</button>
+      <span id="glbName"></span>
+    </div>
+    <div class="glb-stage" id="glbStage">
+      <model-viewer
+        id="glbViewer"
+        camera-controls
+        auto-rotate
+        ar
+        shadow-intensity="1"
+        environment-image="neutral"
+        exposure="1"
+        touch-action="pan-y"
+      ></model-viewer>
+      <div id="glbHint">
+        <div class="glb-title">拖入 .glb 文件，或点击“选择 GLB 文件”</div>
+        <p>文件只在你本地浏览器预览，不会上传到服务器</p>
+      </div>
+      <div id="glbDrop">松开鼠标加载模型</div>
+    </div>
+    <p class="glb-tip">用法：先在「<a id="glbBackLink">建模工具</a>」里挑一个网站生成模型并下载 .glb，再回到这里选择文件即可预览。单指拖动旋转，双指缩放。</p>
+  </div>
+
+
+  <div class="wb-section glb-wrap" id="paintSection" hidden>
+    <div class="glb-bar">
+      <button class="glb-btn" id="ptPickBtn" type="button">打开 GLB</button>
+      <input type="file" id="ptFile" />
+      <button class="glb-btn secondary" id="ptExportBtn" type="button" disabled>导出 GLB</button>
+      <button class="glb-btn secondary" id="ptToPreviewBtn" type="button" disabled>在「GLB 预览」中查看</button>
+      <span id="ptSelName">未选中对象</span>
+    </div>
+    <div class="pt-main">
+      <div class="pt-stage" id="ptStage">
+        <canvas id="ptCanvas"></canvas>
+        <div id="ptEmpty">
+          <div class="pt-title">拖入 .glb 文件，或点击“打开 GLB”</div>
+          <p>点击模型部位选中，再修改颜色和材质</p>
+        </div>
+        <div id="ptDrop">松开鼠标加载模型</div>
+      </div>
+      <div id="ptPanel" class="pt-disabled">
+        <h3>材质</h3>
+        <div class="pt-ctl">
+          <div class="pt-row">
+            <label>颜色</label>
+            <input type="color" id="ptColor" value="#cccccc" />
+          </div>
+          <div class="pt-presets">
+            <button class="glb-btn secondary" type="button" data-pt-preset="stainless">不锈钢</button>
+            <button class="glb-btn secondary" type="button" data-pt-preset="aluminum">铝</button>
+            <button class="glb-btn secondary" type="button" data-pt-preset="polished">镜面</button>
+            <button class="glb-btn secondary" type="button" data-pt-preset="matte">哑光金属</button>
+            <button class="glb-btn secondary" type="button" data-pt-preset="plastic">塑料</button>
+            <button class="glb-btn secondary" type="button" data-pt-preset="rubber">橡胶</button>
+          </div>
+          <div class="pt-row">
+            <label>金属度</label>
+            <input type="range" id="ptMetalness" min="0" max="1" step="0.01" value="0" />
+            <span class="pt-value" id="ptMetalnessVal">0.00</span>
+          </div>
+          <div class="pt-row">
+            <label>粗糙度</label>
+            <input type="range" id="ptRoughness" min="0" max="1" step="0.01" value="0.5" />
+            <span class="pt-value" id="ptRoughnessVal">0.50</span>
+          </div>
+          <div class="pt-row" style="margin-bottom:0">
+            <button class="glb-btn secondary" style="flex:1" type="button" id="ptApplyAll">应用到全部</button>
+            <button class="glb-btn secondary" style="flex:1" type="button" id="ptResetSel">恢复</button>
+          </div>
+        </div>
+        <div class="pt-hint">金属材质需要环境反射，在支持 IBL 的查看器里显示才正确。</div>
+      </div>
+    </div>
+    <p class="glb-tip">用法：打开 .glb（也可以在「GLB 预览」里点“在 GLB 上色中编辑”送过来），点击模型部位选中，调整颜色、金属度、粗糙度，最后点“导出 GLB”保存。单指拖动旋转，双指缩放。</p>
+  </div>
+
+  <script>
+  (function () {
+    // ===== 标签页切换 =====
+    var tabs = document.querySelectorAll(".wb-tab");
+    function showTab(id) {
+      tabs.forEach(function (t) {
+        var on = t.dataset.target === id;
+        t.classList.toggle("active", on);
+        t.setAttribute("aria-selected", on ? "true" : "false");
+        document.getElementById(t.dataset.target).hidden = !on;
+      });
+      var hashes = { previewSection: "#preview", paintSection: "#paint" };
+      try { history.replaceState(null, "", hashes[id] || "#"); } catch (e) {}
+      window.dispatchEvent(new CustomEvent("wb-tabshow", { detail: id }));
+    }
+    window.wbShowTab = showTab;
+    tabs.forEach(function (t) {
+      t.addEventListener("click", function () { showTab(t.dataset.target); });
+    });
+    document.getElementById("glbBackLink").addEventListener("click", function () { showTab("toolsSection"); });
+    if (location.hash === "#preview") showTab("previewSection");
+    if (location.hash === "#paint") showTab("paintSection");
+
+    // ===== GLB 预览 =====
+    var viewer = document.getElementById("glbViewer");
+    var fileInput = document.getElementById("glbFile");
+    var pickBtn = document.getElementById("glbPickBtn");
+    var resetBtn = document.getElementById("glbResetBtn");
+    var nameEl = document.getElementById("glbName");
+    var hint = document.getElementById("glbHint");
+    var stage = document.getElementById("glbStage");
+    var currentUrl = null;
+    var currentFile = null;
+
+    function loadFile(file) {
+      if (!file) return;
+      if (!/\.glb$/i.test(file.name)) {
+        alert("请选择 .glb 文件");
+        return;
+      }
+      if (currentUrl) URL.revokeObjectURL(currentUrl);
+      currentUrl = URL.createObjectURL(file);
+      currentFile = file;
+      viewer.src = currentUrl;
+      nameEl.textContent = file.name;
+      hint.style.display = "none";
+    }
+
+    pickBtn.addEventListener("click", function () { fileInput.click(); });
+    fileInput.addEventListener("change", function () {
+      loadFile(fileInput.files[0]);
+      fileInput.value = ""; // 允许重复选择同一文件
+    });
+
+    resetBtn.addEventListener("click", function () {
+      if (currentUrl) { URL.revokeObjectURL(currentUrl); currentUrl = null; }
+      currentFile = null;
+      viewer.removeAttribute("src");
+      nameEl.textContent = "";
+      fileInput.value = "";
+      hint.style.display = "flex";
+    });
+
+    // 跨标签：把当前模型送去「GLB 上色」
+    window.wbPreview = { open: loadFile };
+    document.getElementById("glbToPaintBtn").addEventListener("click", function () {
+      if (!currentFile) { alert("请先在这里加载一个 GLB 文件"); return; }
+      showTab("paintSection");
+      window.wbPaint.open(currentFile);
+    });
+
+    // 拖放（桌面端）：在预览标签页内，整页都可以拖入
+    var dragCount = 0;
+    function previewActive() { return !document.getElementById("previewSection").hidden; }
+    window.addEventListener("dragenter", function (e) {
+      if (!previewActive()) return;
+      e.preventDefault(); dragCount++; stage.classList.add("dragging");
+    });
+    window.addEventListener("dragover", function (e) { if (previewActive()) e.preventDefault(); });
+    window.addEventListener("dragleave", function (e) {
+      if (!previewActive()) return;
+      e.preventDefault(); dragCount--;
+      if (dragCount <= 0) { dragCount = 0; stage.classList.remove("dragging"); }
+    });
+    window.addEventListener("drop", function (e) {
+      if (!previewActive()) return;
+      e.preventDefault(); dragCount = 0; stage.classList.remove("dragging");
+      var f = e.dataTransfer && e.dataTransfer.files[0];
+      if (f) loadFile(f);
+    });
+  })();
+  </script>
+  <script type="module">
+  /* ===== GLB 上色（three.js 在首次打开该标签页时才加载） ===== */
+  let bootPromise = null;
+  function ensure() {
+    if (!bootPromise) bootPromise = boot().catch((e) => { bootPromise = null; throw e; });
+    return bootPromise;
+  }
+  window.wbPaint = { open: async (file) => (await ensure()).loadFile(file) };
+  window.addEventListener('wb-tabshow', (e) => { if (e.detail === 'paintSection') ensure(); });
+  if (!document.getElementById('paintSection').hidden) ensure();
+  // 文件选择在 three.js 加载完成前就可用
+  const ptFileInput = document.getElementById('ptFile');
+  document.getElementById('ptPickBtn').addEventListener('click', () => ptFileInput.click());
+  ptFileInput.addEventListener('change', () => {
+    const f = ptFileInput.files[0];
+    ptFileInput.value = '';
+    if (f) window.wbPaint.open(f);
+  });
+
+async function boot() {
+
+const THREE = await import('three');
+const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
+const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+const { GLTFExporter } = await import('three/addons/exporters/GLTFExporter.js');
+const { DRACOLoader } = await import('three/addons/loaders/DRACOLoader.js');
+const { MeshoptDecoder } = await import('three/addons/libs/meshopt_decoder.module.js');
+const { RoomEnvironment } = await import('three/addons/environments/RoomEnvironment.js');
+
+/* ---------- 基础场景 ---------- */
+const canvas = document.getElementById('ptCanvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1b1d23);
+
+const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 1000);
+camera.position.set(2, 1.5, 3);
+
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+
+// 环境反射：金属材质必须要有，否则会发黑
+const pmrem = new THREE.PMREMGenerator(renderer);
+const roomEnv = new RoomEnvironment();
+scene.environment = pmrem.fromScene(roomEnv, 0.04).texture;
+roomEnv.dispose?.();
+pmrem.dispose();
+
+const stage = document.getElementById('ptStage');
+const paintSection = document.getElementById('paintSection');
+function resize() {
+  const w = stage.clientWidth, h = stage.clientHeight;
+  if (!w || !h) return;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+new ResizeObserver(resize).observe(stage);
+resize();
+
+renderer.setAnimationLoop(() => {
+  if (paintSection.hidden) return;
+  controls.update();
+  boxHelper?.update();
+  renderer.render(scene, camera);
+});
+
+/* ---------- 加载器 ---------- */
+const loader = new GLTFLoader();
+const dracoLoader = new DRACOLoader();
+dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/libs/draco/');
+loader.setDRACOLoader(dracoLoader);
+loader.setMeshoptDecoder(MeshoptDecoder);
+
+/* ---------- 状态 ---------- */
+let modelRoot = null;
+let selectedMesh = null;
+let boxHelper = null;
+let baseName = 'model';
+const originalMaterials = new WeakMap(); // mesh -> 原始材质
+
+/* ---------- 加载 / 清空 ---------- */
+function loadFile(file) {
+  if (!file) return;
+  if (!/\.(glb|gltf)$/i.test(file.name)) {
+    alert('请选择 .glb 或 .gltf 文件');
+    return;
+  }
+  baseName = file.name.replace(/\.(glb|gltf)$/i, '');
+  const url = URL.createObjectURL(file);
+  loader.load(url, (gltf) => {
+    URL.revokeObjectURL(url);
+    setModel(gltf.scene);
+  }, undefined, (err) => {
+    URL.revokeObjectURL(url);
+    console.error(err);
+    alert('加载失败，请确认是有效的 GLB 文件');
+  });
+}
+
+function setModel(root) {
+  clearModel();
+  modelRoot = root;
+  scene.add(root);
+  fitView(root);
+  document.getElementById('ptEmpty').style.display = 'none';
+  document.getElementById('ptExportBtn').disabled = false;
+  document.getElementById('ptToPreviewBtn').disabled = false;
+}
+
+function clearModel() {
+  if (modelRoot) {
+    scene.remove(modelRoot);
+    modelRoot.traverse((o) => {
+      if (!o.isMesh) return;
+      o.geometry?.dispose?.();
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      mats.forEach((m) => m?.dispose?.());
+    });
+  }
+  modelRoot = null;
+  select(null);
+}
+
+function fitView(root) {
+  const box = new THREE.Box3().setFromObject(root);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z) || 1;
+  const radius = size.length() / 2 || 1; // 外接球半径，保证整个模型都在画面内
+  const vFov = (camera.fov * Math.PI) / 180;
+  const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
+  const dist = (radius / Math.sin(Math.min(vFov, hFov) / 2)) * 1.1;
+
+  const dir = new THREE.Vector3(1, 0.8, 1).normalize();
+  camera.position.copy(center).addScaledVector(dir, dist);
+  camera.near = maxDim / 1000;
+  camera.far = maxDim * 100;
+  camera.updateProjectionMatrix();
+  controls.target.copy(center);
+  controls.update();
+}
+
+/* ---------- 选中 ---------- */
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+let downPos = null;
+
+canvas.addEventListener('pointerdown', (e) => {
+  downPos = { x: e.clientX, y: e.clientY };
+});
+
+canvas.addEventListener('pointerup', (e) => {
+  if (!downPos || !modelRoot) { downPos = null; return; }
+  const dx = e.clientX - downPos.x;
+  const dy = e.clientY - downPos.y;
+  downPos = null;
+  if (dx * dx + dy * dy > 25) return; // 拖动不算点击
+
+  const rect = canvas.getBoundingClientRect();
+  pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+
+  const hits = raycaster.intersectObject(modelRoot, true)
+    .filter((h) => h.object.isMesh && h.object.visible);
+
+  select(hits.length ? hits[0].object : null);
+});
+
+function select(mesh) {
+  selectedMesh = mesh;
+
+  if (boxHelper) {
+    scene.remove(boxHelper);
+    boxHelper.geometry.dispose();
+    boxHelper.material.dispose();
+    boxHelper = null;
+  }
+
+  const panel = document.getElementById('ptPanel');
+  const selname = document.getElementById('ptSelName');
+
+  if (mesh) {
+    boxHelper = new THREE.BoxHelper(mesh, 0x4f8cff);
+    scene.add(boxHelper);
+    panel.classList.remove('pt-disabled');
+    selname.textContent = mesh.name || '未命名部件';
+    syncPanel(mesh);
+  } else {
+    panel.classList.add('pt-disabled');
+    selname.textContent = '未选中对象';
+  }
+}
+
+function firstMaterial(mesh) {
+  if (!mesh) return null;
+  return Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+}
+
+/* ---------- 材质编辑 ---------- */
+function ensureEditable(mesh) {
+  if (!originalMaterials.has(mesh)) {
+    originalMaterials.set(
+      mesh,
+      Array.isArray(mesh.material) ? [...mesh.material] : mesh.material
+    );
+  }
+
+  const clone = (m) => {
+    if (!m) return new THREE.MeshStandardMaterial();
+    if (m.isMeshStandardMaterial) {
+      if (m.userData.__cloned) return m;
+      const c = m.clone();
+      c.userData.__cloned = true;
+      return c;
+    }
+    const c = new THREE.MeshStandardMaterial({
+      color: m.color ? m.color.clone() : new THREE.Color(0xffffff),
+      map: m.map || null,
+      metalness: 0,
+      roughness: 0.8,
+      transparent: m.transparent,
+      opacity: m.opacity,
+      side: m.side,
+    });
+    c.userData.__cloned = true;
+    return c;
+  };
+
+  if (Array.isArray(mesh.material)) {
+    mesh.material = mesh.material.map(clone);
+  } else {
+    mesh.material = clone(mesh.material);
+  }
+}
+
+function setProps(mesh, props) {
+  ensureEditable(mesh);
+  const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+  for (const m of mats) {
+    if (!m) continue;
+    if (props.color !== undefined && m.color) m.color.set(props.color);
+    if (props.metalness !== undefined && 'metalness' in m) m.metalness = props.metalness;
+    if (props.roughness !== undefined && 'roughness' in m) m.roughness = props.roughness;
+    m.needsUpdate = true;
+  }
+}
+
+function setPropsAll(props) {
+  if (!modelRoot) return;
+  modelRoot.traverse((o) => { if (o.isMesh) setProps(o, props); });
+}
+
+function resetSelected() {
+  if (!selectedMesh) return;
+  const orig = originalMaterials.get(selectedMesh);
+  if (orig) {
+    const mats = Array.isArray(selectedMesh.material) ? selectedMesh.material : [selectedMesh.material];
+    mats.forEach((m) => { if (m?.userData.__cloned) m.dispose(); });
+    selectedMesh.material = Array.isArray(orig) ? [...orig] : orig;
+    originalMaterials.delete(selectedMesh);
+  }
+  syncPanel(selectedMesh);
+}
+
+/* ---------- UI ---------- */
+const colorInput = document.getElementById('ptColor');
+const metalnessInput = document.getElementById('ptMetalness');
+const roughnessInput = document.getElementById('ptRoughness');
+const metalnessVal = document.getElementById('ptMetalnessVal');
+const roughnessVal = document.getElementById('ptRoughnessVal');
+
+const PRESETS = {
+  stainless: { color: '#e8e8e8', metalness: 1, roughness: 0.18 },
+  aluminum:  { color: '#d8dadd', metalness: 1, roughness: 0.38 },
+  polished:  { color: '#f2f2f2', metalness: 1, roughness: 0.05 },
+  matte:     { color: '#b8bcc2', metalness: 0.9, roughness: 0.6 },
+  plastic:   { color: '#4f8cff', metalness: 0, roughness: 0.45 },
+  rubber:    { color: '#2a2a2a', metalness: 0, roughness: 0.95 },
+};
+
+function syncPanel(mesh) {
+  const m = firstMaterial(mesh);
+  if (!m) return;
+  if (m.color) colorInput.value = '#' + m.color.getHexString();
+  const metal = 'metalness' in m ? m.metalness : 0;
+  const rough = 'roughness' in m ? m.roughness : 0.5;
+  metalnessInput.value = metal;
+  roughnessInput.value = rough;
+  metalnessVal.textContent = Number(metal).toFixed(2);
+  roughnessVal.textContent = Number(rough).toFixed(2);
+}
+
+colorInput.addEventListener('input', () => {
+  if (!selectedMesh) return;
+  setProps(selectedMesh, { color: colorInput.value });
+});
+
+metalnessInput.addEventListener('input', () => {
+  metalnessVal.textContent = Number(metalnessInput.value).toFixed(2);
+  if (!selectedMesh) return;
+  setProps(selectedMesh, { metalness: Number(metalnessInput.value) });
+});
+
+roughnessInput.addEventListener('input', () => {
+  roughnessVal.textContent = Number(roughnessInput.value).toFixed(2);
+  if (!selectedMesh) return;
+  setProps(selectedMesh, { roughness: Number(roughnessInput.value) });
+});
+
+document.querySelectorAll('[data-pt-preset]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    if (!selectedMesh) return;
+    const p = PRESETS[btn.dataset.ptPreset];
+    setProps(selectedMesh, p);
+    syncPanel(selectedMesh);
+  });
+});
+
+document.getElementById('ptApplyAll').addEventListener('click', () => {
+  setPropsAll({
+    color: colorInput.value,
+    metalness: Number(metalnessInput.value),
+    roughness: Number(roughnessInput.value),
+  });
+});
+
+document.getElementById('ptResetSel').addEventListener('click', resetSelected);
+
+/* ---------- 文件选择 / 拖放 ---------- */
+const fileInput = document.getElementById('ptFile');
+
+
+let dragCount = 0;
+
+window.addEventListener('dragenter', (e) => {
+  if (paintSection.hidden) return;
+  e.preventDefault();
+  dragCount++;
+  stage.classList.add('dragging');
+});
+window.addEventListener('dragover', (e) => { if (!paintSection.hidden) e.preventDefault(); });
+window.addEventListener('dragleave', (e) => {
+  if (paintSection.hidden) return;
+  e.preventDefault();
+  dragCount--;
+  if (dragCount <= 0) { dragCount = 0; stage.classList.remove('dragging'); }
+});
+window.addEventListener('drop', (e) => {
+  if (paintSection.hidden) return;
+  e.preventDefault();
+  dragCount = 0;
+  stage.classList.remove('dragging');
+  const f = e.dataTransfer && e.dataTransfer.files[0];
+  if (f) loadFile(f);
+});
+
+/* ---------- 导出 ---------- */
+function exportBlob() {
+  return new Promise((resolve, reject) => {
+    if (!modelRoot) { reject(new Error('没有模型')); return; }
+    if (boxHelper) boxHelper.visible = false;
+    new GLTFExporter().parse(
+      modelRoot,
+      (result) => {
+        if (boxHelper) boxHelper.visible = true;
+        resolve(new Blob([result], { type: 'model/gltf-binary' }));
+      },
+      (err) => {
+        if (boxHelper) boxHelper.visible = true;
+        reject(err);
+      },
+      { binary: true }
+    );
+  });
+}
+
+document.getElementById('ptExportBtn').addEventListener('click', async () => {
+  if (!modelRoot) return;
+  const btn = document.getElementById('ptExportBtn');
+  const oldText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '导出中…';
+  try {
+    const blob = await exportBlob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = baseName + '-edited.glb';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (err) {
+    console.error(err);
+    alert('导出失败：' + (err?.message || err));
+  }
+  btn.disabled = false;
+  btn.textContent = oldText;
+});
+
+/* ---------- 跨标签：送到「GLB 预览」 ---------- */
+document.getElementById('ptToPreviewBtn').addEventListener('click', async () => {
+  if (!modelRoot) return;
+  try {
+    const blob = await exportBlob();
+    window.wbPreview.open(new File([blob], baseName + '-edited.glb', { type: 'model/gltf-binary' }));
+    window.wbShowTab('previewSection');
+  } catch (err) {
+    console.error(err);
+    alert('发送失败：' + (err?.message || err));
+  }
+});
+
+return { loadFile };
+
+}
+  </script>
+</body>
+</html>
