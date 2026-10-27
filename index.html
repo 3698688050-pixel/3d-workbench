@@ -437,7 +437,7 @@
           </div>
           <div class="pt-row" style="margin-bottom:0">
             <button class="glb-btn secondary" style="flex:1" type="button" id="ptApplyAll">应用到全部</button>
-            <button class="glb-btn secondary" style="flex:1" type="button" id="ptResetSel">恢复</button>
+            <button class="glb-btn secondary" style="flex:1" type="button" id="ptResetSel" disabled>恢复</button>
           </div>
         </div>
         <div class="pt-hint">金属材质需要环境反射，在支持 IBL 的查看器里显示才正确。</div>
@@ -503,7 +503,7 @@
     resetBtn.addEventListener("click", function () {
       if (currentUrl) { URL.revokeObjectURL(currentUrl); currentUrl = null; }
       currentFile = null;
-      viewer.removeAttribute("src");
+      viewer.src = null;
       nameEl.textContent = "";
       fileInput.value = "";
       hint.style.display = "flex";
@@ -625,6 +625,7 @@ let selectedMesh = null;
 let boxHelper = null;
 let baseName = 'model';
 const originalMaterials = new WeakMap(); // mesh -> 原始材质
+const clonedMaterials = new WeakSet(); // 已克隆材质（替代 userData.__cloned，避免导出后污染）
 
 /* ---------- 加载 / 清空 ---------- */
 function loadFile(file) {
@@ -734,9 +735,11 @@ function select(mesh) {
     panel.classList.remove('pt-disabled');
     selname.textContent = mesh.name || '未命名部件';
     syncPanel(mesh);
+    document.getElementById('ptResetSel').disabled = !originalMaterials.has(mesh);
   } else {
     panel.classList.add('pt-disabled');
     selname.textContent = '未选中对象';
+    document.getElementById('ptResetSel').disabled = true;
   }
 }
 
@@ -757,9 +760,9 @@ function ensureEditable(mesh) {
   const clone = (m) => {
     if (!m) return new THREE.MeshStandardMaterial();
     if (m.isMeshStandardMaterial) {
-      if (m.userData.__cloned) return m;
+      if (clonedMaterials.has(m)) return m;
       const c = m.clone();
-      c.userData.__cloned = true;
+      clonedMaterials.add(c);
       return c;
     }
     const c = new THREE.MeshStandardMaterial({
@@ -771,7 +774,7 @@ function ensureEditable(mesh) {
       opacity: m.opacity,
       side: m.side,
     });
-    c.userData.__cloned = true;
+    clonedMaterials.add(c);
     return c;
   };
 
@@ -784,10 +787,15 @@ function ensureEditable(mesh) {
 
 function setProps(mesh, props) {
   ensureEditable(mesh);
+  document.getElementById('ptResetSel').disabled = !originalMaterials.has(mesh);
   const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
   for (const m of mats) {
     if (!m) continue;
-    if (props.color !== undefined && m.color) m.color.set(props.color);
+    if (props.color !== undefined && m.color) {
+      if (m.vertexColors) m.vertexColors = false; // 顶点颜色会与材质颜色相乘，导致上色发黑
+      if (m.map) m.map = null; // 移除颜色贴图，让纯色上色生效
+      m.color.set(props.color);
+    }
     if (props.metalness !== undefined && 'metalness' in m) m.metalness = props.metalness;
     if (props.roughness !== undefined && 'roughness' in m) m.roughness = props.roughness;
     m.needsUpdate = true;
@@ -804,11 +812,12 @@ function resetSelected() {
   const orig = originalMaterials.get(selectedMesh);
   if (orig) {
     const mats = Array.isArray(selectedMesh.material) ? selectedMesh.material : [selectedMesh.material];
-    mats.forEach((m) => { if (m?.userData.__cloned) m.dispose(); });
+    mats.forEach((m) => { if (m && clonedMaterials.has(m)) m.dispose(); });
     selectedMesh.material = Array.isArray(orig) ? [...orig] : orig;
     originalMaterials.delete(selectedMesh);
   }
   syncPanel(selectedMesh);
+  document.getElementById('ptResetSel').disabled = true;
 }
 
 /* ---------- UI ---------- */
