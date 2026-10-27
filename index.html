@@ -340,6 +340,21 @@ body {
 .gen-row input:focus, .gen-row textarea:focus, .gen-row select:focus {
   outline: none; border-color: var(--lamp);
 }
+.gen-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.gen-mode {
+  padding: 7px 0;
+  border: 1px solid var(--line-strong); border-radius: 5px;
+  background: var(--well); color: var(--dim);
+  font-size: 12px; font-family: inherit; cursor: pointer;
+}
+.gen-mode:hover { color: var(--ink); }
+.gen-mode.active { background: var(--lamp); border-color: var(--lamp); color: var(--lamp-ink); }
+.gen-upload { display: flex; flex-direction: column; gap: 8px; }
+#genImgFile { display: none; }
+#genImgPreview {
+  max-width: 100%; border-radius: 5px; border: 1px solid var(--line-strong);
+  display: none;
+}
 .gen-sizes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .gen-size {
   padding: 7px 0;
@@ -601,6 +616,14 @@ body {
     <div class="gen-main">
       <div class="gen-panel">
         <div class="gen-row">
+          <label>模式</label>
+          <div class="gen-modes">
+            <button type="button" class="gen-mode active" data-gen-mode="text">文生图</button>
+            <button type="button" class="gen-mode" data-gen-mode="edit">图片编辑</button>
+          </div>
+        </div>
+
+        <div class="gen-row">
           <label for="genEngine">引擎</label>
           <select id="genEngine">
             <option value="pollinations">Pollinations · FLUX（免登录免费）</option>
@@ -620,8 +643,18 @@ body {
           <div class="gen-hint">注册 siliconflow.cn 后在「API 密钥」页获取，Key 仅存本机浏览器。</div>
         </div>
 
+        <div class="gen-row" id="genImgRow" hidden>
+          <label>上传图片</label>
+          <div class="gen-upload">
+            <button type="button" class="glb-btn secondary" id="genPickImg" style="width:100%">选择图片</button>
+            <input type="file" id="genImgFile" accept="image/*" />
+            <img id="genImgPreview" alt="" />
+            <div class="gen-hint">图片只在本地浏览器处理；免费引擎会压缩后发送。</div>
+          </div>
+        </div>
+
         <div class="gen-row">
-          <label for="genPrompt">画面描述</label>
+          <label for="genPrompt" id="genPromptLabel">画面描述</label>
           <textarea id="genPrompt" placeholder="描述你想生成的画面，例如：一只橘猫坐在窗台上，晨光，胶片质感"></textarea>
         </div>
 
@@ -769,6 +802,14 @@ body {
     var sizeBtns = Array.prototype.slice.call(document.querySelectorAll('.gen-size'));
 
     var curSize = '1024x1024';
+    var modeBtns = Array.prototype.slice.call(document.querySelectorAll('.gen-mode'));
+    var genImgRow = document.getElementById('genImgRow');
+    var genImgFile = document.getElementById('genImgFile');
+    var genPickImg = document.getElementById('genPickImg');
+    var genImgPreview = document.getElementById('genImgPreview');
+    var genPromptLabel = document.getElementById('genPromptLabel');
+    var curMode = 'text';
+    var curImg = null;
 
     // Key 持久化（仅本机）
     try { keyInput.value = localStorage.getItem('sf_key') || ''; } catch (e) {}
@@ -791,6 +832,33 @@ body {
       seedInput.value = String(Math.floor(Math.random() * 2147483647));
     });
 
+    modeBtns.forEach(function (b) {
+      b.addEventListener('click', function () {
+        curMode = b.dataset.genMode;
+        modeBtns.forEach(function (x) { x.classList.toggle('active', x === b); });
+        genImgRow.hidden = curMode !== 'edit';
+        genPromptLabel.textContent = curMode === 'edit' ? '修改指令' : '画面描述';
+        promptEl.placeholder = curMode === 'edit'
+          ? '描述怎么改这张图，例如：把背景改成夜晚、把猫换成狗'
+          : '描述你想生成的画面，例如：一只橘猫坐在窗台上，晨光，胶片质感';
+      });
+    });
+
+    genPickImg.addEventListener('click', function () { genImgFile.click(); });
+    genImgFile.addEventListener('change', function () {
+      var f = genImgFile.files[0];
+      genImgFile.value = '';
+      if (!f) return;
+      if (!/^image\//.test(f.type)) { setStatus('请选择图片文件。', true); return; }
+      if (genImgPreview._url) URL.revokeObjectURL(genImgPreview._url);
+      var url = URL.createObjectURL(f);
+      genImgPreview._url = url;
+      genImgPreview.src = url;
+      genImgPreview.style.display = 'block';
+      curImg = f;
+      setStatus('');
+    });
+
     function setStatus(msg, isErr) {
       statusEl.textContent = msg || '';
       statusEl.classList.toggle('err', !!isErr);
@@ -799,6 +867,37 @@ body {
     function parseSize(s) {
       var p = s.split('x');
       return { w: parseInt(p[0], 10), h: parseInt(p[1], 10) };
+    }
+
+    function compressImage(file, maxDim) {
+      return new Promise(function (resolve, reject) {
+        var img = new Image();
+        var url = URL.createObjectURL(file);
+        img.onload = function () {
+          URL.revokeObjectURL(url);
+          var scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+          var w = Math.max(1, Math.round(img.width * scale));
+          var h = Math.max(1, Math.round(img.height * scale));
+          var canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          var ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          canvas.toBlob(function (blob) {
+            if (blob) resolve(blob); else reject(new Error('压缩失败'));
+          }, 'image/jpeg', 0.85);
+        };
+        img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('图片读取失败')); };
+        img.src = url;
+      });
+    }
+
+    function blobToDataURL(blob) {
+      return new Promise(function (resolve, reject) {
+        var fr = new FileReader();
+        fr.onload = function () { resolve(fr.result); };
+        fr.onerror = function () { reject(new Error('读取失败')); };
+        fr.readAsDataURL(blob);
+      });
     }
 
     function addImage(url, isBase64) {
@@ -842,9 +941,78 @@ body {
 
     genBtn.addEventListener('click', function () {
       var prompt = promptEl.value.trim();
-      if (!prompt) { setStatus('先写一句画面描述。', true); promptEl.focus(); return; }
+      if (!prompt) { setStatus(curMode === 'edit' ? '先写一句修改指令。' : '先写一句画面描述。', true); promptEl.focus(); return; }
       var seed = seedInput.value.trim();
       var size = parseSize(curSize);
+
+      if (curMode === 'edit') {
+        if (!curImg) { setStatus('先上传一张要修改的图片。', true); genImgRow.hidden = false; return; }
+        setStatus('处理图片中…');
+        genBtn.disabled = true;
+        compressImage(curImg, engineSel.value === 'pollinations' ? 512 : 768)
+          .then(function (blob) { return blobToDataURL(blob); })
+          .then(function (dataUrl) {
+            if (engineSel.value === 'pollinations') {
+              var url = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(prompt)
+                + '?image=' + encodeURIComponent(dataUrl)
+                + '&width=' + size.w + '&height=' + size.h + '&nologo=true&model=flux'
+                + (seed ? '&seed=' + seed : '');
+              setStatus('生成中（免费引擎，可能较慢）…');
+              var rr = addImage(url, false);
+              rr.img.onload = function () { setStatus(''); genBtn.disabled = false; };
+              rr.img.onerror = function () {
+                rr.item.remove();
+                setStatus('生成失败，图片可能太大或额度限流，稍后再试。', true);
+                genBtn.disabled = false;
+              };
+            } else {
+              var key = keyInput.value.trim();
+              if (!key) { setStatus('先填硅基流动 API Key（免费注册）。', true); sfCfg.hidden = false; keyInput.focus(); genBtn.disabled = false; return; }
+              setStatus('生成中…');
+              fetch('https://api.siliconflow.cn/v1/images/generations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+                body: JSON.stringify({
+                  model: sfModel.value,
+                  prompt: prompt,
+                  image: dataUrl.split(',')[1],
+                  image_size: curSize,
+                  batch_size: 1,
+                  num_inference_steps: 4
+                })
+              }).then(function (resp) {
+                return resp.json().catch(function () { return null; }).then(function (data) {
+                  if (!resp.ok || !data) {
+                    setStatus('请求失败：' + (data && (data.message || data.error) || resp.status), true);
+                    genBtn.disabled = false;
+                    return;
+                  }
+                  var arr = data.images || data.data || [];
+                  var first = arr[0] || {};
+                  if (first.url) {
+                    var r2 = addImage(first.url, false);
+                    r2.img.onload = function () { setStatus(''); };
+                    r2.img.onerror = function () { r2.item.remove(); setStatus('图片加载失败。', true); };
+                  } else if (first.b64_json) {
+                    addImage(first.b64_json, true);
+                    setStatus('');
+                  } else {
+                    setStatus('返回里没有图片：' + JSON.stringify(data).slice(0, 200), true);
+                  }
+                  genBtn.disabled = false;
+                });
+              }).catch(function (e) {
+                setStatus('网络错误：' + e.message, true);
+                genBtn.disabled = false;
+              });
+            }
+          })
+          .catch(function (e) {
+            setStatus('图片处理失败：' + e.message, true);
+            genBtn.disabled = false;
+          });
+        return;
+      }
 
       if (engineSel.value === 'pollinations') {
         setStatus('生成中（免费引擎，可能较慢）…');
