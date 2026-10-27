@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>图片转3D · 免费工具</title>
+  <title>四合一创作工作台 · 图片转3D / GLB预览 / GLB上色 / AI生图</title>
   <script type="importmap">
   {
     "imports": {
@@ -257,15 +257,74 @@
       .pt-stage { height: 52vh; min-height: 300px; }
       #ptPanel { width: auto; align-self: stretch; }
     }
+    /* ===== AI 生图 ===== */
+    .gen-main { display: flex; gap: 16px; align-items: flex-start; max-width: 1100px; }
+    .gen-panel {
+      width: 300px; flex: none; padding: 16px;
+      background: #1c1d22; border: 1px solid #2a2c33; border-radius: 10px;
+    }
+    .gen-row { margin-bottom: 14px; }
+    .gen-row label { display: block; font-size: 12px; color: #9aa0aa; margin-bottom: 6px; }
+    .gen-row select,
+    .gen-row input[type="text"],
+    .gen-row input[type="password"],
+    .gen-row textarea {
+      width: 100%; padding: 8px 10px; border: 1px solid #2a2c33; border-radius: 8px;
+      background: #141518; color: #eee; font-size: 13px; font-family: inherit;
+    }
+    .gen-row textarea { resize: vertical; min-height: 96px; line-height: 1.6; }
+    .gen-row select { cursor: pointer; }
+    .gen-row input:focus, .gen-row textarea:focus, .gen-row select:focus {
+      outline: none; border-color: #4f8cff;
+    }
+    .gen-sizes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    .gen-size {
+      padding: 7px 0; border: 1px solid #2a2c33; border-radius: 8px;
+      background: #141518; color: #9aa0aa; font-size: 12px; cursor: pointer; font-family: inherit;
+    }
+    .gen-size:hover { color: #eee; }
+    .gen-size.active { background: #4f8cff; border-color: #4f8cff; color: #fff; }
+    .gen-seed { display: flex; gap: 8px; }
+    .gen-seed input { flex: 1; min-width: 0; }
+    .gen-hint { margin-top: 6px; font-size: 11px; color: #6c717c; line-height: 1.5; }
+    .gen-status { margin-top: 10px; font-size: 12px; color: #9aa0aa; min-height: 16px; line-height: 1.5; }
+    .gen-status.err { color: #df7f7f; }
+    .gen-gallery { flex: 1; min-width: 0; }
+    .gen-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+    .gen-item { position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #2a2c33; background: #141518; }
+    .gen-item img { width: 100%; display: block; }
+    .gen-item-bar {
+      position: absolute; left: 0; right: 0; bottom: 0; padding: 8px;
+      display: flex; gap: 6px; justify-content: flex-end;
+      background: linear-gradient(transparent, rgba(0,0,0,.7));
+      opacity: 0; transition: opacity .15s;
+    }
+    .gen-item:hover .gen-item-bar { opacity: 1; }
+    .gen-item-bar a {
+      font-size: 12px; color: #fff; text-decoration: none; padding: 4px 10px;
+      background: rgba(255,255,255,.16); border-radius: 6px; cursor: pointer;
+    }
+    .gen-item-bar a:hover { background: rgba(255,255,255,.3); }
+    .gen-empty {
+      padding: 48px 16px; text-align: center; color: #9aa0aa;
+      border: 1px dashed #2a2c33; border-radius: 10px;
+    }
+    .gen-empty-title { color: #eee; font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+    .gen-empty p { margin: 0; font-size: 13px; line-height: 1.6; }
+    @media (max-width: 700px) {
+      .gen-main { flex-direction: column; }
+      .gen-panel { width: auto; align-self: stretch; }
+    }
   </style>
 </head>
 <body>
-  <h1>图片转 3D · 免费工具</h1>
+  <h1>四合一创作工作台</h1>
 
   <div class="wb-tabs" role="tablist">
     <button class="wb-tab active" id="tabTools" role="tab" data-target="toolsSection" type="button">建模工具</button>
     <button class="wb-tab" id="tabPreview" role="tab" data-target="previewSection" type="button">GLB 预览</button>
     <button class="wb-tab" id="tabPaint" role="tab" data-target="paintSection" type="button">GLB 上色</button>
+    <button class="wb-tab" id="tabGen" role="tab" data-target="genSection" type="button">AI 生图</button>
   </div>
 
   <div class="wb-section" id="toolsSection">
@@ -443,7 +502,67 @@
         <div class="pt-hint">金属材质需要环境反射，在支持 IBL 的查看器里显示才正确。</div>
       </div>
     </div>
-    <p class="glb-tip">用法：打开 .glb（也可以在「GLB 预览」里点“在 GLB 上色中编辑”送过来），点击模型部位选中，调整颜色、金属度、粗糙度，最后点“导出 GLB”保存。单指拖动旋转，双指缩放。</p>
+    <p class="glb-tip">用法：打开 .glb（也可以在「GLB 预览」里点"在 GLB 上色中编辑"送过来），点击模型部位选中，调整颜色、金属度、粗糙度，最后点"导出 GLB"保存。单指拖动旋转，双指缩放。</p>
+  </div>
+
+  <div class="wb-section glb-wrap" id="genSection" hidden>
+    <div class="gen-main">
+      <div class="gen-panel">
+        <div class="gen-row">
+          <label for="genEngine">引擎</label>
+          <select id="genEngine">
+            <option value="pollinations">Pollinations · FLUX（免登录免费）</option>
+            <option value="siliconflow">硅基流动 · FLUX.1 Schnell（免费额度）</option>
+          </select>
+        </div>
+
+        <div class="gen-row" id="genSfCfg" hidden>
+          <label for="genKey">硅基流动 API Key</label>
+          <input type="password" id="genKey" placeholder="sk-..." autocomplete="off" />
+          <label for="genSfModel" style="margin-top:10px">模型</label>
+          <select id="genSfModel">
+            <option value="black-forest-labs/FLUX.1-schnell">FLUX.1 Schnell · 免费</option>
+            <option value="black-forest-labs/FLUX.1-dev">FLUX.1 Dev · 需付费</option>
+            <option value="stabilityai/stable-diffusion-3-5-large">SD 3.5 Large · 需付费</option>
+          </select>
+          <div class="gen-hint">注册 siliconflow.cn 后在「API 密钥」页获取，Key 仅存本机浏览器。</div>
+        </div>
+
+        <div class="gen-row">
+          <label for="genPrompt">画面描述</label>
+          <textarea id="genPrompt" placeholder="描述你想生成的画面，例如：一只橘猫坐在窗台上，晨光，胶片质感"></textarea>
+        </div>
+
+        <div class="gen-row">
+          <label>尺寸</label>
+          <div class="gen-sizes">
+            <button type="button" data-size="1024x1024" class="gen-size active">1:1</button>
+            <button type="button" data-size="768x1024" class="gen-size">3:4</button>
+            <button type="button" data-size="1024x768" class="gen-size">4:3</button>
+            <button type="button" data-size="1280x720" class="gen-size">16:9</button>
+          </div>
+        </div>
+
+        <div class="gen-row">
+          <label for="genSeed">种子（留空随机）</label>
+          <div class="gen-seed">
+            <input type="text" id="genSeed" placeholder="随机" inputmode="numeric" />
+            <button type="button" class="glb-btn secondary" id="genSeedDice">随机</button>
+          </div>
+        </div>
+
+        <button type="button" class="glb-btn" id="genBtn" style="width:100%">生成</button>
+        <div class="gen-status" id="genStatus" role="status"></div>
+      </div>
+
+      <div class="gen-gallery">
+        <div class="gen-grid" id="genGrid"></div>
+        <div class="gen-empty" id="genEmpty">
+          <div class="gen-empty-title">还没有生成图片</div>
+          <p>输入描述，点「生成」。免费引擎有限流，生成较慢时请稍等。</p>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -457,7 +576,7 @@
         t.setAttribute("aria-selected", on ? "true" : "false");
         document.getElementById(t.dataset.target).hidden = !on;
       });
-      var hashes = { previewSection: "#preview", paintSection: "#paint" };
+      var hashes = { previewSection: "#preview", paintSection: "#paint", genSection: "#gen" };
       try { history.replaceState(null, "", hashes[id] || "#"); } catch (e) {}
       window.dispatchEvent(new CustomEvent("wb-tabshow", { detail: id }));
     }
@@ -468,6 +587,7 @@
     document.getElementById("glbBackLink").addEventListener("click", function () { showTab("toolsSection"); });
     if (location.hash === "#preview") showTab("previewSection");
     if (location.hash === "#paint") showTab("paintSection");
+    if (location.hash === "#gen") showTab("genSection");
 
     // ===== GLB 预览 =====
     var viewer = document.getElementById("glbViewer");
@@ -535,6 +655,171 @@
       e.preventDefault(); dragCount = 0; stage.classList.remove("dragging");
       var f = e.dataTransfer && e.dataTransfer.files[0];
       if (f) loadFile(f);
+    });
+  })();
+  </script>
+  <script>
+  (function () {
+    /* ===== AI 生图 ===== */
+    var engineSel = document.getElementById('genEngine');
+    var sfCfg = document.getElementById('genSfCfg');
+    var keyInput = document.getElementById('genKey');
+    var sfModel = document.getElementById('genSfModel');
+    var promptEl = document.getElementById('genPrompt');
+    var seedInput = document.getElementById('genSeed');
+    var diceBtn = document.getElementById('genSeedDice');
+    var genBtn = document.getElementById('genBtn');
+    var statusEl = document.getElementById('genStatus');
+    var grid = document.getElementById('genGrid');
+    var emptyEl = document.getElementById('genEmpty');
+    var sizeBtns = Array.prototype.slice.call(document.querySelectorAll('.gen-size'));
+
+    var curSize = '1024x1024';
+
+    // Key 持久化（仅本机）
+    try { keyInput.value = localStorage.getItem('sf_key') || ''; } catch (e) {}
+    keyInput.addEventListener('change', function () {
+      try { localStorage.setItem('sf_key', keyInput.value.trim()); } catch (e) {}
+    });
+
+    engineSel.addEventListener('change', function () {
+      sfCfg.hidden = engineSel.value !== 'siliconflow';
+    });
+
+    sizeBtns.forEach(function (b) {
+      b.addEventListener('click', function () {
+        curSize = b.dataset.size;
+        sizeBtns.forEach(function (x) { x.classList.toggle('active', x === b); });
+      });
+    });
+
+    diceBtn.addEventListener('click', function () {
+      seedInput.value = String(Math.floor(Math.random() * 2147483647));
+    });
+
+    function setStatus(msg, isErr) {
+      statusEl.textContent = msg || '';
+      statusEl.classList.toggle('err', !!isErr);
+    }
+
+    function parseSize(s) {
+      var p = s.split('x');
+      return { w: parseInt(p[0], 10), h: parseInt(p[1], 10) };
+    }
+
+    function addImage(url, isBase64) {
+      var item = document.createElement('div');
+      item.className = 'gen-item';
+      var img = document.createElement('img');
+      img.alt = '生成结果';
+      img.src = isBase64 ? ('data:image/png;base64,' + url) : url;
+      var bar = document.createElement('div');
+      bar.className = 'gen-item-bar';
+      var a = document.createElement('a');
+      a.href = '#';
+      a.textContent = '下载';
+      bar.appendChild(a);
+      item.appendChild(img);
+      item.appendChild(bar);
+      grid.appendChild(item);
+      emptyEl.style.display = 'none';
+      return { item: item, img: img };
+    }
+
+    function downloadImage(img) {
+      var src = img.src;
+      function trigger(url) {
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'gen-' + Date.now() + '.png';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+      if (src.indexOf('data:') === 0) { trigger(src); return; }
+      fetch(src).then(function (r) { return r.blob(); }).then(function (blob) {
+        var url = URL.createObjectURL(blob);
+        trigger(url);
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+      }).catch(function () {
+        window.open(src, '_blank');
+      });
+    }
+
+    genBtn.addEventListener('click', function () {
+      var prompt = promptEl.value.trim();
+      if (!prompt) { setStatus('先写一句画面描述。', true); promptEl.focus(); return; }
+      var seed = seedInput.value.trim();
+      var size = parseSize(curSize);
+
+      if (engineSel.value === 'pollinations') {
+        setStatus('生成中（免费引擎，可能较慢）…');
+        genBtn.disabled = true;
+        var url = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(prompt)
+          + '?width=' + size.w + '&height=' + size.h + '&nologo=true&model=flux'
+          + (seed ? '&seed=' + seed : '');
+        var r = addImage(url, false);
+        r.img.onload = function () { setStatus(''); genBtn.disabled = false; };
+        r.img.onerror = function () {
+          r.item.remove();
+          setStatus('生成失败，可能是免费额度被限流，稍后再试。', true);
+          genBtn.disabled = false;
+        };
+      } else {
+        var key = keyInput.value.trim();
+        if (!key) {
+          setStatus('先填硅基流动 API Key（免费注册）。', true);
+          sfCfg.hidden = false;
+          keyInput.focus();
+          return;
+        }
+        setStatus('生成中…');
+        genBtn.disabled = true;
+        fetch('https://api.siliconflow.cn/v1/images/generations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+          body: JSON.stringify({
+            model: sfModel.value,
+            prompt: prompt,
+            image_size: curSize,
+            batch_size: 1,
+            num_inference_steps: 4
+          })
+        }).then(function (resp) {
+          return resp.json().catch(function () { return null; }).then(function (data) {
+            if (!resp.ok || !data) {
+              setStatus('请求失败：' + (data && (data.message || data.error) || resp.status), true);
+              genBtn.disabled = false;
+              return;
+            }
+            var arr = data.images || data.data || [];
+            var first = arr[0] || {};
+            if (first.url) {
+              var r2 = addImage(first.url, false);
+              r2.img.onload = function () { setStatus(''); };
+              r2.img.onerror = function () { r2.item.remove(); setStatus('图片加载失败。', true); };
+            } else if (first.b64_json) {
+              addImage(first.b64_json, true);
+              setStatus('');
+            } else {
+              setStatus('返回里没有图片：' + JSON.stringify(data).slice(0, 200), true);
+            }
+            genBtn.disabled = false;
+          });
+        }).catch(function (e) {
+          setStatus('网络错误：' + e.message, true);
+          genBtn.disabled = false;
+        });
+      }
+    });
+
+    grid.addEventListener('click', function (e) {
+      var a = e.target.closest ? e.target.closest('a') : null;
+      if (!a) return;
+      e.preventDefault();
+      var item = a.closest('.gen-item');
+      var img = item && item.querySelector('img');
+      if (img) downloadImage(img);
     });
   })();
   </script>
