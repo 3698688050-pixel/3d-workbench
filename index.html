@@ -245,7 +245,7 @@ body {
 }
 .glb-stage { height: 62vh; min-height: 320px; }
 .glb-stage.dragging, .pt-stage.dragging { border-color: var(--lamp); border-style: dashed; }
-#glbViewer { width: 100%; height: 100%; background: transparent; --poster-color: transparent; }
+#glbViewer { display: none; width: 100%; height: 100%; background: transparent; --poster-color: transparent; }
 
 #glbFile, #ptFile {
   position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; pointer-events: none;
@@ -701,6 +701,7 @@ body {
       if (currentUrl) URL.revokeObjectURL(currentUrl);
       currentUrl = URL.createObjectURL(file);
       currentFile = file;
+      viewer.style.display = "block";
       viewer.src = currentUrl;
       nameEl.textContent = file.name;
       hint.style.display = "none";
@@ -716,6 +717,7 @@ body {
       if (currentUrl) { URL.revokeObjectURL(currentUrl); currentUrl = null; }
       currentFile = null;
       viewer.src = null;
+      viewer.style.display = "none";
       nameEl.textContent = "";
       fileInput.value = "";
       hint.style.display = "flex";
