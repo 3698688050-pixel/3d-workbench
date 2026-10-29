@@ -19,3 +19,7 @@
 
 - **Pollinations · FLUX**：免登录、免 Key，开箱即用，有免费限流。
 - **硅基流动 · FLUX.1 Schnell**：在 [siliconflow.cn](https://siliconflow.cn) 免费注册后填 API Key 即可，Key 仅存本机浏览器（localStorage）。
+
+---
+
+同系列的其他工具见 [工作台索引](https://3698688050-pixel.github.io/)。
